@@ -1,0 +1,1268 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Araç Kamera Uzantısı</title>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a0a;
+            color: #ffffff;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Ana Ekran */
+        #modeSelection {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            padding: 20px;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+        }
+
+        .app-title {
+            font-size: 28px;
+            font-weight: 300;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #00d4ff, #0099ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-align: center;
+        }
+
+        .app-subtitle {
+            font-size: 14px;
+            color: #888;
+            margin-bottom: 40px;
+            text-align: center;
+        }
+
+        .mode-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            width: 100%;
+            max-width: 300px;
+        }
+
+        .mode-btn {
+            padding: 20px;
+            border: 2px solid #333;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            color: #fff;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .mode-btn:hover, .mode-btn:active {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: #0099ff;
+            transform: translateY(-2px);
+        }
+
+        .mode-btn .icon {
+            font-size: 30px;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        .mode-btn .description {
+            font-size: 12px;
+            color: #888;
+            margin-top: 5px;
+        }
+
+        /* Bağlantı Ekranı */
+        #connectionScreen {
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            padding: 20px;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+        }
+
+        .connection-box {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid #333;
+            border-radius: 15px;
+            padding: 30px;
+            width: 100%;
+            max-width: 400px;
+            backdrop-filter: blur(10px);
+        }
+
+        .room-code-display {
+            background: #000;
+            border: 2px solid #333;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .room-code {
+            font-size: 36px;
+            font-weight: bold;
+            letter-spacing: 5px;
+            color: #00d4ff;
+            font-family: 'Courier New', monospace;
+        }
+
+        .input-group {
+            margin: 20px 0;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 10px;
+            color: #888;
+            font-size: 14px;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 15px;
+            background: #000;
+            border: 2px solid #333;
+            border-radius: 10px;
+            color: #fff;
+            font-size: 20px;
+            text-align: center;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #0099ff;
+        }
+
+        .connect-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(45deg, #00d4ff, #0099ff);
+            border: none;
+            border-radius: 10px;
+            color: #fff;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .connect-btn:hover, .connect-btn:active {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 153, 255, 0.4);
+        }
+
+        .connect-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .status-message {
+            text-align: center;
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .status-message.info {
+            background: rgba(0, 153, 255, 0.1);
+            color: #00d4ff;
+        }
+
+        .status-message.success {
+            background: rgba(0, 255, 100, 0.1);
+            color: #00ff64;
+        }
+
+        .status-message.error {
+            background: rgba(255, 0, 0, 0.1);
+            color: #ff4444;
+        }
+
+        .status-message.warning {
+            background: rgba(255, 193, 7, 0.1);
+            color: #ffc107;
+        }
+
+        /* Kamera Ekranı */
+        #cameraScreen, #controlScreen {
+            display: none;
+            position: relative;
+            height: 100vh;
+            width: 100vw;
+            background: #000;
+        }
+
+        #localVideo, #remoteVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            background: #000;
+        }
+
+        /* Kontrol Paneli */
+        .controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 20px;
+            background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .control-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .control-btn:hover, .control-btn:active {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.1);
+        }
+
+        .control-btn.active {
+            background: rgba(0, 153, 255, 0.5);
+            border-color: #00d4ff;
+        }
+
+        .control-btn.capture {
+            width: 70px;
+            height: 70px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #000;
+        }
+
+        .control-btn.capture:active {
+            transform: scale(0.95);
+        }
+
+        .control-btn.recording {
+            background: rgba(255, 0, 0, 0.8);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 0, 0, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0); }
+        }
+
+        /* Zoom Kontrolü */
+        .zoom-control {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 25px;
+            backdrop-filter: blur(10px);
+        }
+
+        .zoom-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .zoom-level {
+            text-align: center;
+            font-size: 12px;
+            color: #888;
+        }
+
+        /* Durum Göstergesi */
+        .status-indicator {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            padding: 10px 20px;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 20px;
+            font-size: 14px;
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #00ff64;
+            animation: blink 2s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .back-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(10px);
+            z-index: 100;
+        }
+
+        /* Firebase kurulum ekranı */
+        .firebase-setup {
+            background: rgba(255, 193, 7, 0.1);
+            border: 2px solid #ffc107;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .firebase-setup h3 {
+            color: #ffc107;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        .firebase-setup ol {
+            margin-left: 20px;
+            color: #ccc;
+            font-size: 14px;
+            line-height: 1.8;
+        }
+
+        .firebase-setup code {
+            background: #000;
+            padding: 2px 5px;
+            border-radius: 3px;
+            color: #00d4ff;
+            font-family: 'Courier New', monospace;
+        }
+
+        /* Mobil için iyileştirmeler */
+        @media (max-width: 600px) {
+            .control-btn {
+                width: 50px;
+                height: 50px;
+                font-size: 20px;
+            }
+            
+            .control-btn.capture {
+                width: 60px;
+                height: 60px;
+            }
+        }
+
+        /* Bildirim */
+        .notification {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: #fff;
+            padding: 20px 40px;
+            border-radius: 10px;
+            font-size: 18px;
+            z-index: 1000;
+            animation: fadeInOut 2s ease;
+            pointer-events: none;
+        }
+
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+            20% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+        }
+
+        .loader {
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            border-top: 3px solid #00d4ff;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Ana Ekran -->
+    <div id="modeSelection">
+        <h1 class="app-title">Araç Kamera Uzantısı</h1>
+        <p class="app-subtitle">WebRTC + Firebase</p>
+        
+        <!-- Firebase Kurulum Bilgisi -->
+        <div class="firebase-setup" id="firebaseSetup">
+            <h3>⚠️ Firebase Kurulumu Gerekli</h3>
+            <ol>
+                <li><a href="https://console.firebase.google.com" target="_blank" style="color: #ffc107;">Firebase Console</a>'a gidin</li>
+                <li>"Create Project" ile yeni proje oluşturun</li>
+                <li>Realtime Database'i etkinleştirin</li>
+                <li>Rules'u <code>true</code> yapın (test için)</li>
+                <li>Project Settings'den config bilgilerini kopyalayın</li>
+                <li>Aşağıdaki koda yapıştırın</li>
+            </ol>
+        </div>
+        
+        <div class="mode-buttons">
+            <button class="mode-btn" onclick="selectMode('camera')">
+                <span class="icon">📷</span>
+                <strong>Kamera Telefonu</strong>
+                <div class="description">Motor içine sokacağınız telefon</div>
+            </button>
+            
+            <button class="mode-btn" onclick="selectMode('control')">
+                <span class="icon">🎮</span>
+                <strong>Kontrol Telefonu</strong>
+                <div class="description">Elinizde tutacağınız telefon</div>
+            </button>
+        </div>
+    </div>
+
+    <!-- Bağlantı Ekranı -->
+    <div id="connectionScreen">
+        <button class="back-btn" onclick="goBack()">←</button>
+        
+        <div class="connection-box">
+            <h2 style="text-align: center; margin-bottom: 20px;">Bağlantı Kurulumu</h2>
+            
+            <!-- Kamera telefonu için oda kodu gösterimi -->
+            <div id="cameraConnection" style="display: none;">
+                <p style="text-align: center; color: #888; margin-bottom: 20px;">
+                    Bu kodu kontrol telefonuna girin:
+                </p>
+                <div class="room-code-display">
+                    <div class="room-code" id="roomCodeDisplay">----</div>
+                </div>
+                <div class="status-message info" id="cameraStatus">
+                    <span class="loader"></span> Kamera başlatılıyor...
+                </div>
+            </div>
+            
+            <!-- Kontrol telefonu için oda kodu girişi -->
+            <div id="controlConnection" style="display: none;">
+                <div class="input-group">
+                    <label>Kamera telefonundaki kodu girin:</label>
+                    <input type="text" id="roomCodeInput" maxlength="4" placeholder="----" oninput="this.value = this.value.toUpperCase()">
+                </div>
+                <button class="connect-btn" onclick="connectToCamera()" id="connectBtn">Bağlan</button>
+                <div id="connectionStatus"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Kamera Ekranı (Kamera telefonu için) -->
+    <div id="cameraScreen">
+        <video id="localVideo" autoplay muted playsinline></video>
+        <div class="status-indicator">
+            <span class="status-dot"></span>
+            <span id="cameraStreamStatus">Yayında</span>
+        </div>
+        <button class="back-btn" onclick="disconnect()">✕</button>
+    </div>
+
+    <!-- Kontrol Ekranı (Kontrol telefonu için) -->
+    <div id="controlScreen">
+        <video id="remoteVideo" autoplay playsinline></video>
+        
+        <div class="status-indicator">
+            <span class="status-dot"></span>
+            <span>Bağlı</span>
+        </div>
+        
+        <button class="back-btn" onclick="disconnect()">✕</button>
+        
+        <!-- Zoom Kontrolü -->
+        <div class="zoom-control" id="zoomControl" style="display: none;">
+            <button class="zoom-btn" onclick="changeZoom(0.1)">+</button>
+            <div class="zoom-level" id="zoomLevel">1.0x</div>
+            <button class="zoom-btn" onclick="changeZoom(-0.1)">−</button>
+        </div>
+        
+        <!-- Alt Kontrol Paneli -->
+        <div class="controls">
+            <button class="control-btn" id="flashBtn" onclick="toggleFlash()" title="El Feneri">
+                💡
+            </button>
+            
+            <button class="control-btn" id="switchCameraBtn" onclick="switchCamera()" title="Kamera Değiştir">
+                🔄
+            </button>
+            
+            <button class="control-btn capture" onclick="capturePhoto()" title="Fotoğraf Çek">
+                📸
+            </button>
+            
+            <button class="control-btn" id="recordBtn" onclick="toggleRecording()" title="Video Kayıt">
+                ⏺️
+            </button>
+            
+            <button class="control-btn" onclick="toggleFullscreen()" title="Tam Ekran">
+                ⛶
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // FIREBASE YAPILANDIRMASI - BU KISMI DEĞİŞTİRİN!
+        // ============================================
+        
+        // Firebase Console'dan aldığınız config bilgilerini buraya yapıştırın
+        const firebaseConfig = {
+            apiKey: "AIzaSyBUuJ6Ml4XbFSH0ntOBEgprxxWFpZvNYHY",
+            authDomain: "smart-screen-627b6.firebaseapp.com",
+            databaseURL: "https://smart-screen-627b6-default-rtdb.firebaseio.com",
+            projectId: "smart-screen-627b6",
+            storageBucket: "smart-screen-627b6.firebasestorage.app",
+            messagingSenderId: "366182008241",
+             appId: "1:366182008241:web:eefd3d8cb8b8bf70f86990"
+         };
+
+        
+        // ============================================
+        // UYGULAMA KODU - Aşağısı değiştirilmeyecek
+        // ============================================
+        
+        // Firebase başlatma
+        let database = null;
+        let firebaseInitialized = false;
+        
+        try {
+            firebase.initializeApp(firebaseConfig);
+            database = firebase.database();
+            firebaseInitialized = true;
+            // Firebase başarılı, setup mesajını gizle
+            document.getElementById('firebaseSetup').style.display = 'none';
+        } catch (error) {
+            console.error('Firebase başlatma hatası:', error);
+            // Config yapılmamış, uyarı göster
+            document.getElementById('firebaseSetup').style.display = 'block';
+        }
+        
+        // Global değişkenler
+        let mode = null;
+        let localStream = null;
+        let remoteStream = null;
+        let peerConnection = null;
+        let dataChannel = null;
+        let roomCode = null;
+        let isRecording = false;
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let currentZoom = 1.0;
+        let currentCamera = 'environment';
+        let flashEnabled = false;
+        let videoTrack = null;
+        let roomRef = null;
+        
+        // ICE Server konfigürasyonu
+        const iceServers = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' },
+                { urls: 'stun:stun4.l.google.com:19302' }
+            ]
+        };
+        
+        // Mod seçimi
+        function selectMode(selectedMode) {
+            if (!firebaseInitialized) {
+                showNotification('⚠️ Önce Firebase yapılandırması gerekli!');
+                return;
+            }
+            
+            mode = selectedMode;
+            document.getElementById('modeSelection').style.display = 'none';
+            document.getElementById('connectionScreen').style.display = 'flex';
+            
+            if (mode === 'camera') {
+                document.getElementById('cameraConnection').style.display = 'block';
+                initializeCameraMode();
+            } else {
+                document.getElementById('controlConnection').style.display = 'block';
+            }
+        }
+        
+        // Rastgele oda kodu oluştur
+        function generateRoomCode() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let code = '';
+            for (let i = 0; i < 4; i++) {
+                code += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return code;
+        }
+        
+        // Kamera modunu başlat
+        async function initializeCameraMode() {
+            try {
+                roomCode = generateRoomCode();
+                document.getElementById('roomCodeDisplay').textContent = roomCode;
+                
+                // Firebase'de oda oluştur
+                roomRef = database.ref('rooms/' + roomCode);
+                await roomRef.set({
+                    created: firebase.database.ServerValue.TIMESTAMP,
+                    status: 'waiting'
+                });
+                
+                // Kamera erişimi al
+                updateCameraStatus('Kamera erişimi isteniyor...');
+                
+                const constraints = {
+                    video: {
+                        facingMode: currentCamera,
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    },
+                    audio: false
+                };
+                
+                try {
+                    localStream = await navigator.mediaDevices.getUserMedia(constraints);
+                    videoTrack = localStream.getVideoTracks()[0];
+                    
+                    updateCameraStatus('WebRTC bağlantısı hazırlanıyor...');
+                    
+                    // WebRTC bağlantısı oluştur
+                    peerConnection = new RTCPeerConnection(iceServers);
+                    
+                    // Video stream'i ekle
+                    localStream.getTracks().forEach(track => {
+                        peerConnection.addTrack(track, localStream);
+                    });
+                    
+                    // Data channel oluştur
+                    dataChannel = peerConnection.createDataChannel('commands', {
+                        ordered: true
+                    });
+                    
+                    dataChannel.onopen = () => {
+                        console.log('Data channel açıldı');
+                        updateCameraStatus('Bağlantı kuruldu, komut bekleniyor...');
+                    };
+                    
+                    dataChannel.onmessage = handleCommand;
+                    
+                    // ICE adaylarını Firebase'e kaydet
+                    peerConnection.onicecandidate = (event) => {
+                        if (event.candidate) {
+                            roomRef.child('callerCandidates').push(event.candidate.toJSON());
+                        }
+                    };
+                    
+                    // Offer oluştur
+                    const offer = await peerConnection.createOffer();
+                    await peerConnection.setLocalDescription(offer);
+                    
+                    // Offer'ı Firebase'e kaydet
+                    await roomRef.child('offer').set({
+                        type: offer.type,
+                        sdp: offer.sdp
+                    });
+                    
+                    updateCameraStatus('Bağlantı bekleniyor...');
+                    
+                    // Answer'ı dinle
+                    roomRef.child('answer').on('value', async (snapshot) => {
+                        const answer = snapshot.val();
+                        if (answer && !peerConnection.currentRemoteDescription) {
+                            const rtcAnswer = new RTCSessionDescription(answer);
+                            await peerConnection.setRemoteDescription(rtcAnswer);
+                            
+                            // Kamera ekranına geç
+                            document.getElementById('connectionScreen').style.display = 'none';
+                            document.getElementById('cameraScreen').style.display = 'block';
+                            document.getElementById('localVideo').srcObject = localStream;
+                        }
+                    });
+                    
+                    // Callee ICE adaylarını dinle
+                    roomRef.child('calleeCandidates').on('child_added', async (snapshot) => {
+                        const candidate = snapshot.val();
+                        if (candidate) {
+                            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                        }
+                    });
+                    
+                } catch (cameraError) {
+                    console.error('Kamera erişim hatası:', cameraError);
+                    updateCameraStatus('Kamera erişimi reddedildi! Lütfen izin verin.', 'error');
+                    
+                    // Kullanıcıya yardımcı bilgi ver
+                    setTimeout(() => {
+                        updateCameraStatus('Tarayıcı ayarlarından kamera iznini kontrol edin', 'warning');
+                    }, 3000);
+                }
+                
+            } catch (err) {
+                console.error('Başlatma hatası:', err);
+                updateCameraStatus('Bağlantı hatası: ' + err.message, 'error');
+            }
+        }
+        
+        // Kontrol telefonundan bağlan
+        async function connectToCamera() {
+            const inputCode = document.getElementById('roomCodeInput').value.toUpperCase();
+            if (inputCode.length !== 4) {
+                showStatus('Lütfen 4 haneli kodu girin', 'error');
+                return;
+            }
+            
+            roomCode = inputCode;
+            document.getElementById('connectBtn').disabled = true;
+            showStatus('Bağlanıyor...', 'info');
+            
+            try {
+                // Firebase'den oda bilgilerini al
+                roomRef = database.ref('rooms/' + roomCode);
+                const roomSnapshot = await roomRef.once('value');
+                
+                if (!roomSnapshot.exists()) {
+                    showStatus('Kamera bulunamadı. Kodu kontrol edin.', 'error');
+                    document.getElementById('connectBtn').disabled = false;
+                    return;
+                }
+                
+                const roomData = roomSnapshot.val();
+                if (!roomData.offer) {
+                    showStatus('Kamera henüz hazır değil. Tekrar deneyin.', 'warning');
+                    document.getElementById('connectBtn').disabled = false;
+                    return;
+                }
+                
+                // WebRTC bağlantısı oluştur
+                peerConnection = new RTCPeerConnection(iceServers);
+                
+                // Remote stream'i al
+                peerConnection.ontrack = (event) => {
+                    remoteStream = event.streams[0];
+                    document.getElementById('remoteVideo').srcObject = remoteStream;
+                    
+                    // Video track'i al (zoom ve özellikler için)
+                    const tracks = remoteStream.getVideoTracks();
+                    if (tracks.length > 0) {
+                        videoTrack = tracks[0];
+                        
+                        // Zoom desteğini kontrol et
+                        if (videoTrack.getCapabilities && videoTrack.getCapabilities().zoom) {
+                            document.getElementById('zoomControl').style.display = 'flex';
+                        }
+                    }
+                    
+                    // Kontrol ekranına geç
+                    document.getElementById('connectionScreen').style.display = 'none';
+                    document.getElementById('controlScreen').style.display = 'block';
+                };
+                
+                // Data channel'ı al
+                peerConnection.ondatachannel = (event) => {
+                    dataChannel = event.channel;
+                    dataChannel.onopen = () => {
+                        console.log('Data channel bağlandı');
+                        showStatus('Bağlantı kuruldu!', 'success');
+                    };
+                };
+                
+                // ICE adaylarını Firebase'e kaydet
+                peerConnection.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        roomRef.child('calleeCandidates').push(event.candidate.toJSON());
+                    }
+                };
+                
+                // Offer'ı ayarla
+                const offer = new RTCSessionDescription(roomData.offer);
+                await peerConnection.setRemoteDescription(offer);
+                
+                // Answer oluştur
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                
+                // Answer'ı Firebase'e kaydet
+                await roomRef.child('answer').set({
+                    type: answer.type,
+                    sdp: answer.sdp
+                });
+                
+                // Caller ICE adaylarını al
+                const callerCandidatesSnapshot = await roomRef.child('callerCandidates').once('value');
+                callerCandidatesSnapshot.forEach((childSnapshot) => {
+                    const candidate = childSnapshot.val();
+                    peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                });
+                
+                // Yeni caller ICE adaylarını dinle
+                roomRef.child('callerCandidates').on('child_added', async (snapshot) => {
+                    const candidate = snapshot.val();
+                    if (candidate) {
+                        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                    }
+                });
+                
+                showStatus('Bağlantı kuruldu!', 'success');
+                
+            } catch (err) {
+                console.error('Bağlantı hatası:', err);
+                showStatus('Bağlantı kurulamadı: ' + err.message, 'error');
+                document.getElementById('connectBtn').disabled = false;
+            }
+        }
+        
+        // Komutları işle (kamera telefonu için)
+        function handleCommand(event) {
+            try {
+                const command = JSON.parse(event.data);
+                
+                switch(command.type) {
+                    case 'capture':
+                        capturePhotoOnCamera();
+                        break;
+                    case 'flash':
+                        toggleFlashOnCamera(command.value);
+                        break;
+                    case 'zoom':
+                        setZoomOnCamera(command.value);
+                        break;
+                    case 'switch':
+                        switchCameraOnCamera();
+                        break;
+                    case 'record':
+                        toggleRecordingOnCamera(command.value);
+                        break;
+                }
+            } catch (err) {
+                console.error('Komut işleme hatası:', err);
+            }
+        }
+        
+        // Kontrol fonksiyonları
+        function sendCommand(command) {
+            if (dataChannel && dataChannel.readyState === 'open') {
+                dataChannel.send(JSON.stringify(command));
+                return true;
+            }
+            console.error('Data channel kapalı');
+            showNotification('⚠️ Bağlantı koptu!');
+            return false;
+        }
+        
+        function capturePhoto() {
+            if (sendCommand({ type: 'capture' })) {
+                showNotification('📸 Fotoğraf çekildi!');
+                
+                // Kontrol telefonunda da kaydet
+                if (remoteStream) {
+                    const video = document.getElementById('remoteVideo');
+                    const canvas = document.createElement('canvas');
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0);
+                    
+                    canvas.toBlob(blob => {
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `arac_foto_${new Date().getTime()}.jpg`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                    }, 'image/jpeg', 0.95);
+                }
+            }
+        }
+        
+        function toggleFlash() {
+            flashEnabled = !flashEnabled;
+            document.getElementById('flashBtn').classList.toggle('active', flashEnabled);
+            sendCommand({ type: 'flash', value: flashEnabled });
+        }
+        
+        function changeZoom(delta) {
+            currentZoom = Math.max(1.0, Math.min(5.0, currentZoom + delta));
+            document.getElementById('zoomLevel').textContent = currentZoom.toFixed(1) + 'x';
+            sendCommand({ type: 'zoom', value: currentZoom });
+        }
+        
+        function switchCamera() {
+            currentCamera = currentCamera === 'environment' ? 'user' : 'environment';
+            sendCommand({ type: 'switch' });
+            showNotification('🔄 Kamera değiştiriliyor...');
+        }
+        
+        function toggleRecording() {
+            isRecording = !isRecording;
+            const btn = document.getElementById('recordBtn');
+            
+            if (isRecording) {
+                btn.classList.add('recording');
+                btn.innerHTML = '⏹️';
+                startRecording();
+            } else {
+                btn.classList.remove('recording');
+                btn.innerHTML = '⏺️';
+                stopRecording();
+            }
+            
+            sendCommand({ type: 'record', value: isRecording });
+        }
+        
+        // Kamera telefonu fonksiyonları
+        function capturePhotoOnCamera() {
+            if (!localStream) return;
+            
+            const video = document.getElementById('localVideo');
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth || 1920;
+            canvas.height = video.videoHeight || 1080;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0);
+            
+            canvas.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `arac_kamera_${new Date().getTime()}.jpg`;
+                a.click();
+                URL.revokeObjectURL(url);
+            }, 'image/jpeg', 0.95);
+        }
+        
+        async function toggleFlashOnCamera(enabled) {
+            if (videoTrack) {
+                try {
+                    const capabilities = videoTrack.getCapabilities();
+                    if (capabilities.torch) {
+                        await videoTrack.applyConstraints({
+                            advanced: [{ torch: enabled }]
+                        });
+                        document.getElementById('cameraStreamStatus').textContent = 
+                            enabled ? 'Yayında (Flaş Açık)' : 'Yayında';
+                    }
+                } catch (err) {
+                    console.error('Flaş kontrolü hatası:', err);
+                }
+            }
+        }
+        
+        async function setZoomOnCamera(zoom) {
+            if (videoTrack) {
+                try {
+                    const capabilities = videoTrack.getCapabilities();
+                    if (capabilities.zoom) {
+                        const minZoom = capabilities.zoom.min || 1;
+                        const maxZoom = capabilities.zoom.max || 1;
+                        const actualZoom = minZoom + (maxZoom - minZoom) * ((zoom - 1) / 4);
+                        
+                        await videoTrack.applyConstraints({
+                            advanced: [{ zoom: actualZoom }]
+                        });
+                    }
+                } catch (err) {
+                    console.error('Zoom hatası:', err);
+                }
+            }
+        }
+        
+        async function switchCameraOnCamera() {
+            currentCamera = currentCamera === 'environment' ? 'user' : 'environment';
+            
+            const constraints = {
+                video: {
+                    facingMode: currentCamera,
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 }
+                },
+                audio: false
+            };
+            
+            try {
+                const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+                const newVideoTrack = newStream.getVideoTracks()[0];
+                
+                // WebRTC bağlantısında track'i değiştir
+                const sender = peerConnection.getSenders().find(
+                    s => s.track && s.track.kind === 'video'
+                );
+                
+                if (sender) {
+                    await sender.replaceTrack(newVideoTrack);
+                }
+                
+                // Local video'yu güncelle
+                document.getElementById('localVideo').srcObject = newStream;
+                
+                // Eski stream'i durdur
+                if (localStream) {
+                    localStream.getTracks().forEach(track => track.stop());
+                }
+                
+                localStream = newStream;
+                videoTrack = newVideoTrack;
+                
+                document.getElementById('cameraStreamStatus').textContent = 
+                    currentCamera === 'user' ? 'Yayında (Ön Kamera)' : 'Yayında (Arka Kamera)';
+                
+            } catch (err) {
+                console.error('Kamera değiştirme hatası:', err);
+            }
+        }
+        
+        // Video kayıt fonksiyonları
+        function startRecording() {
+            if (!remoteStream) return;
+            
+            recordedChunks = [];
+            
+            const options = {
+                mimeType: 'video/webm;codecs=vp9',
+                videoBitsPerSecond: 2500000
+            };
+            
+            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                options.mimeType = 'video/webm';
+            }
+            
+            try {
+                mediaRecorder = new MediaRecorder(remoteStream, options);
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        recordedChunks.push(event.data);
+                    }
+                };
+                
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `arac_video_${new Date().getTime()}.webm`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                };
+                
+                mediaRecorder.start(100); // Her 100ms'de veri kaydet
+                showNotification('🔴 Kayıt başladı');
+                
+            } catch (err) {
+                console.error('Kayıt başlatma hatası:', err);
+                showNotification('⚠️ Kayıt başlatılamadı');
+            }
+        }
+        
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                showNotification('⏹️ Kayıt durduruldu ve kaydedildi');
+            }
+        }
+        
+        // Tam ekran
+        function toggleFullscreen() {
+            const screen = document.getElementById('controlScreen');
+            
+            if (!document.fullscreenElement) {
+                if (screen.requestFullscreen) {
+                    screen.requestFullscreen();
+                } else if (screen.webkitRequestFullscreen) {
+                    screen.webkitRequestFullscreen();
+                } else if (screen.mozRequestFullScreen) {
+                    screen.mozRequestFullScreen();
+                }
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                } else if (document.mozCancelFullScreen) {
+                    document.mozCancelFullScreen();
+                }
+            }
+        }
+        
+        // Bağlantıyı kes
+        async function disconnect() {
+            try {
+                // WebRTC bağlantısını kapat
+                if (peerConnection) {
+                    peerConnection.close();
+                    peerConnection = null;
+                }
+                
+                // Medya kaynaklarını durdur
+                if (localStream) {
+                    localStream.getTracks().forEach(track => track.stop());
+                    localStream = null;
+                }
+                
+                // Kayıt varsa durdur
+                if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                    mediaRecorder.stop();
+                }
+                
+                // Firebase'den odayı sil
+                if (roomRef && roomCode) {
+                    await roomRef.remove();
+                }
+                
+                // Ana ekrana dön
+                window.location.reload();
+                
+            } catch (err) {
+                console.error('Bağlantı kesme hatası:', err);
+                window.location.reload();
+            }
+        }
+        
+        // Geri dön
+        function goBack() {
+            if (roomRef && roomCode) {
+                roomRef.remove();
+            }
+            
+            document.getElementById('connectionScreen').style.display = 'none';
+            document.getElementById('modeSelection').style.display = 'flex';
+            document.getElementById('cameraConnection').style.display = 'none';
+            document.getElementById('controlConnection').style.display = 'none';
+            document.getElementById('roomCodeInput').value = '';
+            document.getElementById('connectBtn').disabled = false;
+            
+            mode = null;
+            roomCode = null;
+            roomRef = null;
+        }
+        
+        // Yardımcı fonksiyonlar
+        function showStatus(message, type) {
+            const statusEl = document.getElementById('connectionStatus');
+            if (statusEl) {
+                statusEl.className = 'status-message ' + type;
+                statusEl.textContent = message;
+            }
+        }
+        
+        function updateCameraStatus(message, type = 'info') {
+            const statusEl = document.getElementById('cameraStatus');
+            if (statusEl) {
+                statusEl.className = 'status-message ' + type;
+                if (type === 'info' && message.includes('bekleniyor')) {
+                    statusEl.innerHTML = '<span class="loader"></span> ' + message;
+                } else {
+                    statusEl.textContent = message;
+                }
+            }
+        }
+        
+        function showNotification(message) {
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 2000);
+        }
+        
+        // Sayfa kapatılırken temizlik
+        window.addEventListener('beforeunload', async () => {
+            if (roomRef && roomCode) {
+                await roomRef.remove();
+            }
+            if (peerConnection) {
+                peerConnection.close();
+            }
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+        });
+        
+        // Bağlantı durumunu kontrol et
+        if (peerConnection) {
+            peerConnection.onconnectionstatechange = () => {
+                console.log('Bağlantı durumu:', peerConnection.connectionState);
+                
+                if (peerConnection.connectionState === 'disconnected' || 
+                    peerConnection.connectionState === 'failed') {
+                    showNotification('⚠️ Bağlantı koptu!');
+                }
+            };
+        }
+    </script>
+</body>
+</html>
